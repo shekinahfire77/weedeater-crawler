@@ -1,0 +1,27 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "weedeater-crawler"
+version = "0.1.0"
+description = "Scrapy + Playwright crawler for manufacturer/distributor product intel"
+authors = [{name = "Covenant Automata"}]
+requires-python = ">=3.10"
+dependencies = [
+  "scrapy>=2.11",
+  "scrapy-playwright>=0.0.39",
+  "playwright>=1.47",
+  "scrapy-redis>=0.7.3",
+  "tenacity>=9.0.0",
+  "fake-useragent>=1.5.1",
+  "firebase-admin>=6.5.0",
+  "boto3>=1.35.0",
+  "google-cloud-storage>=2.18.0",
+  "python-dotenv>=1.0.1",
+  "prometheus-client>=0.20.0",
+  "structlog>=24.1.0",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]

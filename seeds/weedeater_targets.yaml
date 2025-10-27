@@ -1,0 +1,31 @@
+# Example seeds. Extend as needed.
+# Each entry supports optional login, form, and scope hints.
+- url: https://www.husqvarna.com/us/grass-trimmers/
+  site: husqvarna.com
+  allow_patterns: ["/grass-trimmers/", "/products/grass-trimmers/"]
+  deny_patterns: ["/support/", "/dealer-locator/"]
+  type: manufacturer
+
+- url: https://www.stihlusa.com/products/trimmers-and-brushcutters/
+  site: stihlusa.com
+  allow_patterns: ["/products/trimmers-and-brushcutters/", "/products/trimmers/"]
+  deny_patterns: ["/store-locator/"]
+  type: manufacturer
+
+- url: https://www.echo-usa.com/Products/Trimmers
+  site: echo-usa.com
+  allow_patterns: ["/Products/Trimmers/"]
+  deny_patterns: []
+  type: manufacturer
+
+- url: https://www.lowes.com/c/Lawn-trimmers-Outdoor-tools-equipment
+  site: lowes.com
+  type: distributor
+  allow_patterns: ["/pl/Lawn-trimmers/"]
+  scroll_to_load: true
+
+- url: https://www.homedepot.com/b/Outdoors-Outdoor-Power-Equipment-Trimmers/N-5yc1vZbx9x
+  site: homedepot.com
+  type: distributor
+  allow_patterns: ["/p/", "/b/"]
+  scroll_to_load: true
