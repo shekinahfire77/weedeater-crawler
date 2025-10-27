@@ -2,7 +2,83 @@
 
 A production-ready Scrapy + Playwright project for crawling weedeater manufacturer and distributor sites.
 
-## Quickstart
+## Quick Start with Docker (Recommended)
+
+The easiest way to run the crawler is using Docker Compose:
+
+```bash
+# 1) Clone the repository
+git clone <repository-url>
+cd weedeater-crawler
+
+# 2) Build and start services (Redis + Crawler)
+docker-compose up -d
+
+# 3) Seed the Redis queue with targets
+docker-compose --profile seed up seed-queue
+
+# 4) View logs
+docker-compose logs -f crawler
+
+# 5) Stop services
+docker-compose down
+
+# 6) Stop and remove all data (including Redis and SQLite)
+docker-compose down -v
+```
+
+### Docker Commands Reference
+
+```bash
+# Build the Docker image
+docker-compose build
+
+# Start services in background
+docker-compose up -d
+
+# View crawler logs in real-time
+docker-compose logs -f crawler
+
+# View Redis logs
+docker-compose logs -f redis
+
+# Execute a command in the running crawler container
+docker-compose exec crawler bash
+
+# Run a custom Scrapy command
+docker-compose exec crawler scrapy crawl weedeater -s LOG_LEVEL=DEBUG
+
+# Restart the crawler
+docker-compose restart crawler
+
+# Access the data
+# SQLite database: ./data/weedeater.sqlite
+# Logs: ./logs/
+
+# View Prometheus metrics
+curl http://localhost:8008/metrics
+```
+
+### Environment Configuration
+
+Edit the `docker-compose.yml` file to customize environment variables, or create a `.env` file in the project root:
+
+```bash
+# Copy the example environment file
+cp .env.example .env
+# Edit .env with your configuration
+```
+
+Key environment variables:
+- `REDIS_URL`: Redis connection string (default: redis://redis:6379)
+- `HEADLESS`: Run browser in headless mode (default: true)
+- `CONCURRENT_REQUESTS`: Max concurrent requests (default: 8)
+- `SQLITE_PATH`: Path to SQLite database (default: /app/data/weedeater.sqlite)
+- `ENABLE_FIRESTORE`, `ENABLE_S3`, `ENABLE_GCS`: Toggle cloud storage backends
+- `PROMETHEUS_PORT`: Metrics export port (default: 8008)
+
+## Local Development (Without Docker)
+
 ```bash
 # 1) Install deps
 pip install -e .
@@ -75,3 +151,34 @@ Common fields emitted by the spider:
 ## Compliance
 - Respect robots.txt only if configured. You own compliance decisions. Configure `ROBOTSTXT_OBEY` and site-specific rules.
 - Add allow/deny patterns in seeds to restrict scope.
+
+## Docker Architecture
+
+The containerized setup includes:
+
+1. **Redis Service**: Persistent queue storage for distributed crawling
+   - Uses Redis 7 Alpine for minimal footprint
+   - Data persisted in named volume `redis-data`
+   - Health checks ensure service is ready before crawler starts
+
+2. **Crawler Service**: Main Scrapy application
+   - Built from local Dockerfile
+   - Mounts `./data` and `./logs` directories for persistence
+   - Exposes port 8008 for Prometheus metrics
+   - Includes Playwright + Chromium with all dependencies
+   - Resource limits: 2.5GB max memory, 1GB reserved
+
+3. **Seed Queue Service** (optional, profile: seed)
+   - Runs once to populate Redis with initial URLs
+   - Uses same image as crawler
+   - Automatically exits after seeding
+
+### Data Persistence
+
+- **SQLite Database**: `./data/weedeater.sqlite` (mounted volume)
+- **Logs**: `./logs/` (mounted volume)
+- **Redis Data**: Named volume `redis-data` (persists between restarts)
+
+### Networking
+
+All services communicate via the `weedeater-network` bridge network. Services can reference each other by service name (e.g., `redis://redis:6379`).

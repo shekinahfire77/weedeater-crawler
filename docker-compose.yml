@@ -1,0 +1,110 @@
+version: '3.8'
+
+services:
+  redis:
+    image: redis:7-alpine
+    container_name: weedeater-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    command: redis-server --appendonly yes
+    networks:
+      - weedeater-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  crawler:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: weedeater-crawler
+    depends_on:
+      redis:
+        condition: service_healthy
+    ports:
+      - "8008:8008"  # Prometheus metrics
+    volumes:
+      - ./data:/app/data  # SQLite database persistence
+      - ./logs:/app/logs  # Log file persistence
+      - ./seeds:/app/seeds:ro  # Seed files (read-only)
+    environment:
+      # Redis connection
+      - REDIS_URL=redis://redis:6379
+
+      # Crawler settings
+      - HEADLESS=true
+      - CONCURRENT_REQUESTS=8
+      - CONCURRENT_REQUESTS_PER_DOMAIN=4
+      - DOWNLOAD_DELAY=0.5
+      - AUTOTHROTTLE_ENABLED=true
+      - AUTOTHROTTLE_START_DELAY=0.5
+      - AUTOTHROTTLE_MAX_DELAY=10.0
+      - AUTOTHROTTLE_TARGET_CONCURRENCY=2.0
+      - MEMUSAGE_LIMIT_MB=2048
+
+      # Data sinks
+      - ENABLE_SQLITE=true
+      - SQLITE_PATH=/app/data/weedeater.sqlite
+      - ENABLE_FIRESTORE=false
+      - ENABLE_S3=false
+      - ENABLE_GCS=false
+
+      # Prometheus
+      - PROMETHEUS_PORT=8008
+
+      # Proxy and User Agent (optional)
+      - USER_AGENT_MODE=random
+      - PROXY_POOL=
+
+      # Login credentials (if needed)
+      - LOGIN_EMAIL=
+      - LOGIN_PASSWORD=
+
+      # Logging
+      - LOG_LEVEL=INFO
+    networks:
+      - weedeater-network
+    restart: unless-stopped
+    # Resource limits to prevent runaway processes
+    deploy:
+      resources:
+        limits:
+          memory: 2500M
+        reservations:
+          memory: 1G
+    # Override command to keep container running for manual crawls
+    # Uncomment the line below to prevent auto-start of crawler
+    # command: ["tail", "-f", "/dev/null"]
+
+  # Optional: Seed queue service (run once to populate Redis)
+  seed-queue:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: weedeater-seed-queue
+    depends_on:
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./seeds:/app/seeds:ro
+    environment:
+      - REDIS_URL=redis://redis:6379
+    networks:
+      - weedeater-network
+    command: ["python", "tools/seed_queue.py", "seeds/weedeater_targets.yaml"]
+    restart: "no"  # Run once
+    profiles:
+      - seed  # Only runs when explicitly specified
+
+networks:
+  weedeater-network:
+    driver: bridge
+
+volumes:
+  redis-data:
+    driver: local
