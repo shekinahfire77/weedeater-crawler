@@ -17,3 +17,4 @@ class ProductItem(Item):
     images = Field()
     breadcrumbs = Field()
     raw_html_path = Field()
+    _raw_html_bytes = Field()  # Internal field for storing raw HTML before upload

@@ -9,6 +9,7 @@ RUN apt-get update && apt-get install -y \
     git \
     curl \
     wget \
+    netcat-openbsd \
     fonts-liberation \
     libnss3 \
     libnspr4 \

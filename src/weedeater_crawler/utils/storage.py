@@ -1,6 +1,7 @@
 import os
 import time
 import json
+import logging
 from pathlib import Path
 from typing import Optional
 
@@ -10,6 +11,7 @@ import firebase_admin
 from firebase_admin import credentials, firestore
 
 _firestore_client = None
+logger = logging.getLogger(__name__)
 
 
 def ensure_dir(path: str):
@@ -36,12 +38,24 @@ def get_firestore():
 
 
 def upload_s3(bucket: str, key: str, data: bytes, content_type: str = "text/html"):
-    s3 = boto3.client("s3", region_name=os.getenv("AWS_REGION", "us-east-1"))
-    s3.put_object(Bucket=bucket, Key=key, Body=data, ContentType=content_type)
+    """Upload data to S3 with error handling."""
+    try:
+        s3 = boto3.client("s3", region_name=os.getenv("AWS_REGION", "us-east-1"))
+        s3.put_object(Bucket=bucket, Key=key, Body=data, ContentType=content_type)
+        logger.info(f"Successfully uploaded to S3: s3://{bucket}/{key}")
+    except Exception as e:
+        logger.error(f"Failed to upload to S3 bucket '{bucket}' key '{key}': {e}")
+        raise
 
 
 def upload_gcs(bucket: str, key: str, data: bytes, content_type: str = "text/html"):
-    client = gcs_storage.Client()
-    b = client.bucket(bucket)
-    blob = b.blob(key)
-    blob.upload_from_string(data, content_type=content_type)
+    """Upload data to GCS with error handling."""
+    try:
+        client = gcs_storage.Client()
+        b = client.bucket(bucket)
+        blob = b.blob(key)
+        blob.upload_from_string(data, content_type=content_type)
+        logger.info(f"Successfully uploaded to GCS: gs://{bucket}/{key}")
+    except Exception as e:
+        logger.error(f"Failed to upload to GCS bucket '{bucket}' key '{key}': {e}")
+        raise

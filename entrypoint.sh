@@ -7,29 +7,38 @@ echo "==================================="
 
 # Wait for Redis to be ready
 echo "Waiting for Redis to be ready..."
-until nc -z ${REDIS_URL##redis://} 2>/dev/null; do
-    # Extract host and port from REDIS_URL
-    REDIS_HOST=$(echo $REDIS_URL | sed 's|redis://||' | cut -d':' -f1)
-    REDIS_PORT=$(echo $REDIS_URL | sed 's|redis://||' | cut -d':' -f2)
 
-    echo "Attempting to connect to Redis at $REDIS_HOST:$REDIS_PORT..."
+# Extract host and port from REDIS_URL (format: redis://host:port or redis://host:port/db)
+REDIS_URL_STRIPPED=$(echo "$REDIS_URL" | sed 's|redis://||' | sed 's|/.*||')
+REDIS_HOST=$(echo "$REDIS_URL_STRIPPED" | cut -d':' -f1)
+REDIS_PORT=$(echo "$REDIS_URL_STRIPPED" | cut -d':' -f2)
 
-    # Simple wait without nc dependency
-    sleep 2
+# Default to 6379 if port not specified
+if [ -z "$REDIS_PORT" ] || [ "$REDIS_PORT" = "$REDIS_HOST" ]; then
+    REDIS_PORT=6379
+fi
 
-    # Try to use redis-cli if available, otherwise continue
-    if command -v redis-cli &> /dev/null; then
-        if redis-cli -h $REDIS_HOST -p $REDIS_PORT ping 2>/dev/null | grep -q PONG; then
-            break
-        fi
-    else
-        # If redis-cli not available, just wait a bit and hope for the best
-        sleep 3
+echo "Attempting to connect to Redis at $REDIS_HOST:$REDIS_PORT..."
+
+# Use bash TCP connection test (works without external dependencies)
+MAX_RETRIES=30
+RETRY_COUNT=0
+
+while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
+    # Try to open TCP connection to Redis using bash
+    if timeout 2 bash -c "echo > /dev/tcp/$REDIS_HOST/$REDIS_PORT" 2>/dev/null; then
+        echo "Redis is ready!"
         break
     fi
+
+    RETRY_COUNT=$((RETRY_COUNT + 1))
+    echo "Redis not ready yet (attempt $RETRY_COUNT/$MAX_RETRIES), waiting..."
+    sleep 2
 done
 
-echo "Redis is ready!"
+if [ $RETRY_COUNT -ge $MAX_RETRIES ]; then
+    echo "WARNING: Could not connect to Redis after $MAX_RETRIES attempts. Proceeding anyway..."
+fi
 
 # Ensure data and logs directories exist
 mkdir -p /app/data /app/logs

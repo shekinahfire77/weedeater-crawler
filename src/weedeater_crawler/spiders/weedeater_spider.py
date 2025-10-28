@@ -2,9 +2,10 @@ import os
 import json
 import time
 import tldextract
-from datetime import datetime
+from datetime import datetime, timezone
 from urllib.parse import urljoin
 from typing import Iterable
+from pathlib import Path
 
 import scrapy
 from scrapy.linkextractors import LinkExtractor
@@ -23,12 +24,27 @@ class WeedeaterSpider(scrapy.Spider):
     def start_requests(self) -> Iterable[scrapy.Request]:
         # If running through Redis, seeds can be pushed via rpush to <spider>:start_urls
         # Fallback: read local YAML
-        seeds_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "..", "seeds", "weedeater_targets.yaml")
+        # Use environment variable for seeds path with fallback
+        seeds_path_str = os.getenv(
+            'WEEDEATER_SEEDS_PATH',
+            os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "..", "seeds", "weedeater_targets.yaml")
+        )
+        seeds_path = Path(seeds_path_str)
+
         try:
             import yaml
             with open(seeds_path, "r", encoding="utf-8") as f:
                 seeds = yaml.safe_load(f)
-        except Exception:
+                if not seeds:
+                    seeds = []
+        except FileNotFoundError:
+            self.logger.error(f"Seeds file not found at {seeds_path}")
+            seeds = []
+        except yaml.YAMLError as e:
+            self.logger.error(f"Failed to parse YAML from {seeds_path}: {e}")
+            seeds = []
+        except (IOError, OSError) as e:
+            self.logger.error(f"Failed to read seeds file at {seeds_path}: {e}")
             seeds = []
         for s in seeds:
             url = s["url"]
@@ -88,7 +104,7 @@ class WeedeaterSpider(scrapy.Spider):
     def parse_product(self, response: scrapy.http.Response):
         item = ProductItem()
         item['source_url'] = response.url
-        item['crawled_at'] = datetime.utcnow().isoformat()
+        item['crawled_at'] = datetime.now(timezone.utc).isoformat()
         item['site'] = response.meta.get('site')
 
         # Heuristics for product extraction across varied templates
